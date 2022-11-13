@@ -1,0 +1,7 @@
+id,code,n
+1,EGIDS: <=6a; UNESCO: safe; ElCat: safe,2956
+2,EGIDS: 6b; UNESCO: vulnerable; ElCat: vulnerable,1537
+3,EGIDS: 7; UNESCO: definitely endangered; ElCat: definitely endangered,1837
+4,EGIDS: 8a; UNESCO: severely endangered; ElCat: severely endangered,414
+5,EGIDS: 8b; UNESCO: critically endangered; ElCat: critically endangered,351
+6,EGIDS: >=9; UNESCO: extinct; ElCat: extinct,1250

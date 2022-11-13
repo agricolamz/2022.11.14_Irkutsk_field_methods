@@ -1,0 +1,173 @@
+---
+title: "Полевые данные и компьютерные инструменты"
+author: "Г. Мороз"
+institute: "Международная лаборатория языковой конвергенции, НИУ ВШЭ, Москва"
+date: |
+      | Иркутский государственный университет
+      | 14 – 16 ноября 2022 г.
+      | «Цифра» в социально-гуманитарных исследованиях: метод, поле, реальность?
+output: 
+  beamer_presentation:
+    df_print: kable
+    latex_engine: xelatex
+    citation_package: natbib
+    keep_tex: false
+    includes:
+      in_header: "config/presento.sty"
+always_allow_html: true
+bibliography: bibliography.bib
+urlcolor: colorblue
+citecolor: colorblue
+csl: "config/apa.csl"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, dev='cairo_pdf')
+library(tidyverse)
+theme_set(theme_minimal()+theme(legend.position = "bottom", text = element_text(size = 18)))
+```
+
+# Малые языки в большой лингвистике
+
+## Какие бывают языки с точки зрения компьютерных инструментов?
+
+- огромные (шкала EGIDS [@lewis10] = 1)
+    - доступно очень много текстовых данных, сформировалась литература, есть здоровый интернет
+    - доступны даже исторические данные, скажем, на целый век
+- средние (шкала EGIDS от 2 до 5)
+    - додступны грамматические описания, двуязычные словари
+    - литературная традиция часто ограничена одним веком, и обычно немногочисленна
+- малые (шкала EGIDS больше 5)
+    - острая нехватка материалов
+    
+## Какие бывают языки с точки зрения компьютерных инструментов?
+
+```{r, eval = FALSE}
+library(tidyverse)
+df <- read_csv("https://raw.githubusercontent.com/glottolog/glottolog-cldf/v4.6.1/cldf/values.csv")
+df %>%
+  filter(str_detect(Code_ID, "aes")) %>% 
+  count(Code_ID) %>% 
+  mutate(code = case_when(
+    Code_ID == "aes-not_endangered" ~ "EGIDS: <=6a; UNESCO: safe; ElCat: safe",
+    Code_ID == "aes-threatened" ~ "EGIDS: 6b; UNESCO: vulnerable; ElCat: vulnerable",
+    Code_ID == "aes-shifting" ~ "EGIDS: 7; UNESCO: definitely endangered; ElCat: definitely endangered",
+    Code_ID == "aes-moribund" ~ "EGIDS: 8a; UNESCO: severely endangered; ElCat: severely endangered",
+    Code_ID == "aes-nearly_extinct" ~ "EGIDS: 8b; UNESCO: critically endangered; ElCat: critically endangered",
+    Code_ID == "aes-extinct" ~ "EGIDS: >=9; UNESCO: extinct; ElCat: extinct"),
+    id = case_when(
+      Code_ID == "aes-not_endangered" ~ 1,
+      Code_ID == "aes-threatened" ~ 2,
+      Code_ID == "aes-shifting" ~ 3,
+      Code_ID == "aes-moribund" ~ 4,
+      Code_ID == "aes-nearly_extinct" ~ 5,
+      Code_ID == "aes-extinct" ~ 6)) %>% 
+  arrange(id) %>% 
+  select(id, code, n) %>% 
+  write_csv("data/ethnolog_codes_from_glottolog.csv")
+```
+
+```{r}
+df <- read_csv("data/ethnolog_codes_from_glottolog.csv")
+
+df %>% 
+  mutate(code = fct_reorder(code, id, .desc = TRUE)) %>% 
+  ggplot(aes(n, code))+
+  geom_col()+
+  labs(x = "количество языков", y = "", caption = "на основе Glottolog v. 4.6.1")+
+  expand_limits(x =c(0, 3200)) 
+```
+
+## Как это влияет на инструменты компьютерной лингвистики для малых языков?
+
+- нет данных или их очень мало, так что все что строится на нейросетях не работает
+  - морфологический парсер?
+  - синтаксический парсер?
+  - распознавание/синтез речи? \pause
+- как следствие, не всегда можно вслепую копировать методы разработанные для больших языков
+
+## Лексема *ложить* в НКРЯ 
+
+```{r}
+df <- read_csv("data/ruscorpora_lozhit.csv") 
+df %>% 
+  group_by(Author) %>% 
+  sample_n(1) %>% 
+  mutate(Created = as.double(Created)) %>% 
+  ggplot(aes(Created))+
+  geom_histogram()+
+  labs(y = "", x = "год создания", caption = "77 уникальных авторов отфильтрованных из 141 примера")+
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+
+  expand_limits(x =c(1930, 2030)) 
+```
+
+## Лексема *ложить* в устных корусах
+
+```{r, eval=FALSE}
+df <- read_csv("/home/agricolamz/work/articles/2023_DiaL2/udpiped.csv")
+df %>% 
+  count(corpus, tier_name) %>% 
+  rename(total = n) ->
+  total_words
+
+df %>% 
+  filter(str_detect(token, "^лож[иау]"),
+         token != "ложа",
+         token != "ложага",
+         !str_detect(token, "с[яь]$")) %>% 
+  count(corpus, tier_name, token) %>% 
+  full_join(total_words) %>% 
+  group_by(corpus, tier_name, total) %>% 
+  summarise(n = sum(n),
+            n = ifelse(is.na(n), "не встретилась", "встретилась")) %>% 
+  ungroup() %>% 
+  count(corpus, n) %>% 
+  group_by(corpus) %>% 
+  mutate(total = sum(nn)) %>% 
+  ungroup()  %>% 
+  pivot_wider(names_from = n, values_from = nn, values_fill = 0) %>% 
+  select(-`не встретилась`) %>% 
+  rename(nn = встретилась) %>% 
+  mutate(corpus = str_c(str_remove(corpus, "data_(oral_russian_)?"), " (", total, " носит.)")) %>%
+  select(-total) %>% 
+  write_csv("data/conlab_corpora_lozhit.csv")
+```
+
+```{r}
+read_csv("data/conlab_corpora_lozhit.csv") %>% 
+  mutate(corpus = fct_reorder(corpus, nn)) %>% 
+  ggplot(aes(nn, corpus))+
+  geom_col(position = "dodge")+
+  geom_text(aes(label = nn), nudge_x = 0.5)+
+  labs(x = "количество носителей, употребляющих ложить", 
+       y = "", 
+       caption = "на основе устных корпусов\nмеждунароной лаборатории языковой конвергенции")
+```
+
+## Как это влияет на инструменты компьютерной лингвистики для малых языков?
+
+- нет данных или их очень мало, так что все что строится на нейросетях не работает
+  - морфологический парсер?
+  - синтаксический парсер?
+  - распознавание/синтез речи?
+- как следствие, не всегда можно вслепую копировать методы разработанные для больших языков
+
+В результате, для малых языков необходимы особые инструменты и методы, которые бы позволяли облегчать или делать возможным лингвистический анализ и инструменты для языкового комьюнити (спеллчекеры, предективный набор и т. п.).
+
+## Инструменты для полевых лингвистов
+
+- устные корпуса
+    - без морфологической разметки
+    - с морфологической разметкой
+- морфологические анализаторы (трансдьюссеры lexd и twol)
+- синтаксические парсеры (проект Universal Dependencies)
+
+# Устные корпуса
+
+# Морфологический анализаторы
+
+# Синтаксические парсеры
+
+# References {.allowframebreaks}
